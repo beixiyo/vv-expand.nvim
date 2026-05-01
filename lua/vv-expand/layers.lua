@@ -6,6 +6,33 @@ local R = require('vv-expand.range')
 
 local M = {}
 
+-- ========== Layer 0: word (先 iw 再 iW) ==========
+
+function M.word(cur, _cfg)
+  if cur[1] ~= cur[3] then return nil end
+  local lnum = cur[1]
+  local line = R.line_text(lnum)
+  if line == '' then return nil end
+
+  local cur_s, cur_e = cur[2], cur[4]
+
+  -- iw: [%w_]+ 连续字母数字下划线
+  local s, e = cur_s, cur_e
+  while s > 1 and line:sub(s - 1, s - 1):match('[%w_]') do s = s - 1 end
+  while e < #line and line:sub(e + 1, e + 1):match('[%w_]') do e = e + 1 end
+  local iw = { lnum, s, lnum, e }
+  if R.contains_strict(iw, cur) then return iw end
+
+  -- iW: [^%s]+ 连续非空白
+  s, e = cur_s, cur_e
+  while s > 1 and not line:sub(s - 1, s - 1):match('%s') do s = s - 1 end
+  while e < #line and not line:sub(e + 1, e + 1):match('%s') do e = e + 1 end
+  local iW = { lnum, s, lnum, e }
+  if R.contains_strict(iW, cur) then return iW end
+
+  return nil
+end
+
 -- ========== Layer 1: pair (本行成对字符) ==========
 
 -- word-boundary 规则：char 两侧同时是 ASCII 字母数字时视为词内字符（snake_case 的 _、

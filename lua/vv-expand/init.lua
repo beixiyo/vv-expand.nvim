@@ -9,7 +9,7 @@ local M = {}
 
 ---@class ExpandConfig
 ---@field pairs { same: string[], nested: string[][] } 参与匹配的字符对；same 为同字符成对，nested 为开闭不同对
----@field layers ('pair'|'lsp'|'treesitter'|'line')[] 扩张层级顺序，先命中先用
+---@field layers ('pair'|'lsp'|'treesitter'|'line'|'word')[] 扩张层级顺序，先命中先用
 ---@field keymaps { init?: string, expand?: string, shrink?: string } 按键映射
 ---@field filetype_exclude string[] 不启用的 filetype 列表
 ---@field lsp_timeout integer LSP selectionRange 同步请求超时 (ms)
@@ -23,7 +23,7 @@ local defaults = {
       { '<', '>' },
     },
   },
-  layers = { 'pair', 'lsp', 'treesitter', 'line' },
+  layers = { 'word', 'pair', 'lsp', 'treesitter', 'line' },
   keymaps = {
     init = '<CR>',
     expand = '<CR>',
