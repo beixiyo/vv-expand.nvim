@@ -6,15 +6,16 @@ local R = require('vv-expand.range')
 
 local M = {}
 
--- ========== Layer 0: word (先 iw 再 iW) ==========
+-- ========== Layer 0: word (iw → 逐段 subword | iW) ==========
 
-function M.word(cur, _cfg)
+function M.word(cur, cfg)
   if cur[1] ~= cur[3] then return nil end
   local lnum = cur[1]
   local line = R.line_text(lnum)
   if line == '' then return nil end
 
   local cur_s, cur_e = cur[2], cur[4]
+  local delims = cfg.subword_delimiters
 
   -- iw: [%w_]+ 连续字母数字下划线
   local s, e = cur_s, cur_e
@@ -23,7 +24,38 @@ function M.word(cur, _cfg)
   local iw = { lnum, s, lnum, e }
   if R.contains_strict(iw, cur) then return iw end
 
-  -- iW: [^%s]+ 连续非空白
+  if delims then
+    -- 逐段扩张：遇到分隔符停下，走完后交给 pair 层
+    local best, best_size = nil, math.huge
+    local function try(r)
+      if R.contains_strict(r, cur) then
+        local sz = R.size(r)
+        if sz < best_size then best, best_size = r, sz end
+      end
+    end
+
+    if cur_s > 1 then
+      local ch = line:sub(cur_s - 1, cur_s - 1)
+      if delims:find(ch, 1, true) then
+        local ls = cur_s - 1
+        while ls > 1 and line:sub(ls - 1, ls - 1):match('[%w_]') do ls = ls - 1 end
+        if ls < cur_s - 1 then try({ lnum, ls, lnum, cur_e }) end
+      end
+    end
+
+    if cur_e < #line then
+      local ch = line:sub(cur_e + 1, cur_e + 1)
+      if delims:find(ch, 1, true) then
+        local re = cur_e + 1
+        while re < #line and line:sub(re + 1, re + 1):match('[%w_]') do re = re + 1 end
+        if re > cur_e + 1 then try({ lnum, cur_s, lnum, re }) end
+      end
+    end
+
+    return best
+  end
+
+  -- iW: [^%s]+ 连续非空白（仅 subword_delimiters 未配置时）
   s, e = cur_s, cur_e
   while s > 1 and not line:sub(s - 1, s - 1):match('%s') do s = s - 1 end
   while e < #line and not line:sub(e + 1, e + 1):match('%s') do e = e + 1 end

@@ -12,6 +12,7 @@ local M = {}
 ---@field layers ('pair'|'lsp'|'treesitter'|'line'|'word')[] 扩张层级顺序，先命中先用
 ---@field keymaps { init?: string, expand?: string, shrink?: string } 按键映射
 ---@field filetype_exclude string[] 不启用的 filetype 列表
+---@field subword_delimiters? string 逐段扩张的分隔符字符集；nil 则禁用逐段、直接 iw → iW
 ---@field lsp_timeout integer LSP selectionRange 同步请求超时 (ms)
 local defaults = {
   pairs = {
@@ -29,6 +30,7 @@ local defaults = {
     expand = '<CR>',
     shrink = '<BS>',
   },
+  subword_delimiters = '-=+/:;|,.?\\!@#$%^&*~',
   -- 'vv-explorer' 和 'vv-task-panel' 是作者的其他插件，未安装时会被安全忽略
   filetype_exclude = { 'qf', 'help', 'dashboard', 'vv-explorer', 'vv-task-panel' },
   lsp_timeout = 400,
