@@ -7,13 +7,13 @@ local layers = require('vv-expand.layers')
 
 local M = {}
 
----@class ExpandConfig
----@field pairs { same: string[], nested: string[][] } 参与匹配的字符对；same 为同字符成对，nested 为开闭不同对
----@field layers ('pair'|'lsp'|'treesitter'|'line'|'word')[] 扩张层级顺序，先命中先用
----@field keymaps { init?: string, expand?: string, shrink?: string } 按键映射
----@field filetype_exclude string[] 不启用的 filetype 列表
----@field subword_delimiters? string 逐段扩张的分隔符字符集；nil 则禁用逐段、直接 iw → iW
----@field lsp_timeout integer LSP selectionRange 同步请求超时 (ms)
+---@class VVExpandConfig
+---@field pairs { same: string[], nested: string[][] } 参与匹配的字符对；same 为同字符成对，nested 为开闭不同对 @default { same = { '"', "'", '`', '*', '_', '-' }, nested = { ... } }
+---@field layers ('pair'|'lsp'|'treesitter'|'line'|'word')[] 扩张层级顺序，先命中先用 @default { 'word', 'pair', 'lsp', 'treesitter', 'line' }
+---@field keymaps { init?: string, expand?: string, shrink?: string } 按键映射 @default { init = '<CR>', expand = '<CR>', shrink = '<BS>' }
+---@field filetype_exclude string[] 不启用的 filetype 列表 @default { 'qf', 'help', 'dashboard', 'vv-explorer', 'vv-task-panel' }
+---@field subword_delimiters? string 逐段扩张的分隔符字符集；nil 则禁用逐段、直接 iw → iW @default '-=+/:;|,.?\\!@#$%^&*~'
+---@field lsp_timeout integer LSP selectionRange 同步请求超时 (ms) @default 400
 local defaults = {
   pairs = {
     same = { '"', "'", '`', '*', '_', '-' },
@@ -36,7 +36,7 @@ local defaults = {
   lsp_timeout = 400,
 }
 
-M.config = defaults
+local config = defaults
 
 -- 每 buffer 独立的选区历史栈
 local stacks = {}
@@ -49,7 +49,7 @@ end
 
 local function excluded_ft(ft)
   ft = ft or vim.bo.filetype
-  for _, f in ipairs(M.config.filetype_exclude) do
+  for _, f in ipairs(config.filetype_exclude) do
     if f == ft then return true end
   end
   return false
@@ -67,10 +67,10 @@ function M.expand()
   end
 
   local next_range
-  for _, name in ipairs(M.config.layers) do
+  for _, name in ipairs(config.layers) do
     local fn = layers[name]
     if fn then
-      local r = fn(cur, M.config)
+      local r = fn(cur, config)
       if r and R.contains_strict(r, cur) then
         next_range = r
         break
@@ -105,7 +105,7 @@ end
 
 local function install_keymaps(buf)
   if not vim.api.nvim_buf_is_valid(buf) then return end
-  local k = M.config.keymaps
+  local k = config.keymaps
   local function map(mode, lhs, fn, desc)
     if not lhs then return end
     vim.keymap.set(mode, lhs, fn, { buffer = buf, silent = true, desc = desc })
@@ -116,7 +116,7 @@ local function install_keymaps(buf)
 end
 
 function M.setup(opts)
-  M.config = vim.tbl_deep_extend('force', defaults, opts or {})
+  config = vim.tbl_deep_extend('force', defaults, opts or {})
 
   local group = vim.api.nvim_create_augroup('VVExpand', { clear = true })
   vim.api.nvim_create_autocmd('FileType', {
@@ -139,6 +139,16 @@ function M.setup(opts)
       end
     end
   end
+
+  vim.api.nvim_create_user_command('VVExpandInit', function() M.init() end, {})
+  vim.api.nvim_create_user_command('VVExpandExpand', function() M.expand() end, {})
+  vim.api.nvim_create_user_command('VVExpandShrink', function() M.shrink() end, {})
+end
+
+---获取当前配置（只读副本）
+---@return VVExpandConfig
+function M.get_config()
+  return vim.deepcopy(config)
 end
 
 return M
