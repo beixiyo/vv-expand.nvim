@@ -67,31 +67,44 @@ end
 
 -- ========== Layer 1: pair (本行成对字符) ==========
 
--- word-boundary 规则：char 两侧同时是 ASCII 字母数字时视为词内字符（snake_case 的 _、
--- kebab-case 的 -），不参与配对；其余（标点、空白、行首行尾、CJK）都是合法分隔符位
-local function is_delim_pos(line, col)
-  local before = col > 1 and line:sub(col - 1, col - 1) or ''
-  local after = col < #line and line:sub(col + 1, col + 1) or ''
-  return not (before:match('[%w]') and after:match('[%w]'))
-end
+-- word-boundary 规则：分隔字符（run）两侧同时是 ASCII 字母数字时视为词内（snake_case 的 _、
+-- a*b 的 *、kebab 的 -），不参与配对；其余（标点、空白、行首行尾、CJK）都是合法分隔位
 
-local function find_same_char_pair(line, ch, cur_s, cur_e)
-  local pos = {}
+-- 找出 ch 在本行的所有成对位置（含 markdown 风格的连续 run 多层嵌套）。
+-- run = 连续相同字符（如 ** / __）视作一个分隔 token；run 按出现顺序 parity 配对
+-- （run#1 开 ↔ run#2 闭、run#3 ↔ run#4 ...），run 内字符由内向外逐层嵌套，
+-- 使 **x** 能逐层扩张 x → *x* → **x**；单字符 run 退化为普通成对（不影响 'a'、'a' 'b' 等）。
+-- 返回 { {s,e}, ... }，调用方对每个 try_pair 生成内/外候选，再由 try 的 contains_strict 选最内层。
+local function find_same_char_pairs(line, ch)
+  local n = #line
+  local runs = {}
   local i = 1
-  while true do
-    local p = line:find(ch, i, true)
-    if not p then break end
-    if is_delim_pos(line, p) then
-      pos[#pos + 1] = p
+  while i <= n do
+    if line:sub(i, i) == ch then
+      local j = i
+      while j < n and line:sub(j + 1, j + 1) == ch do j = j + 1 end
+      -- run [i,j] 的词内判断：左邻与右邻同为 ASCII 字母数字才算词内（如 a*b 的 *、foo_bar 的 _）
+      local before = i > 1 and line:sub(i - 1, i - 1) or ''
+      local after = j < n and line:sub(j + 1, j + 1) or ''
+      if not (before:match('[%w]') and after:match('[%w]')) then
+        runs[#runs + 1] = { i, j }
+      end
+      i = j + 1
+    else
+      i = i + 1
     end
-    i = p + 1
   end
-  -- 从左到右两两成对 (1,2) (3,4) ...，取最内层严格包含 cur 的那对
-  for k = 1, #pos - 1, 2 do
-    local s, e = pos[k], pos[k + 1]
-    if s < cur_s and e >= cur_e then return { s, e } end
+
+  local out = {}
+  for k = 1, #runs - 1, 2 do
+    local a, b = runs[k], runs[k + 1] -- a=开 run，b=闭 run
+    local levels = math.min(a[2] - a[1] + 1, b[2] - b[1] + 1)
+    for t = 1, levels do
+      -- 第 t 层（由内向外）：开 run 右数第 t 个 ↔ 闭 run 左数第 t 个
+      out[#out + 1] = { a[2] - (t - 1), b[1] + (t - 1) }
+    end
   end
-  return nil
+  return out
 end
 
 local function find_nested_pair(line, open_ch, close_ch, cur_s, cur_e)
@@ -135,8 +148,9 @@ function M.pair(cur, cfg)
   end
 
   for _, ch in ipairs(cfg.pairs.same) do
-    local p = find_same_char_pair(line, ch, cur[2], cur[4])
-    if p then try_pair(p[1], p[2]) end
+    for _, p in ipairs(find_same_char_pairs(line, ch)) do
+      try_pair(p[1], p[2])
+    end
   end
   for _, pair in ipairs(cfg.pairs.nested) do
     local p = find_nested_pair(line, pair[1], pair[2], cur[2], cur[4])
@@ -147,14 +161,34 @@ end
 
 -- ========== Layer 2: LSP textDocument/selectionRange ==========
 
+-- 0-based byte 列 → LSP position encoding 的 code unit（utf-8 为恒等）
+local function byte_to_lsp_char(line, byte0, enc)
+  if enc == 'utf-8' or byte0 <= 0 then return math.max(0, byte0) end
+  local ok, idx = pcall(vim.str_utfindex, line, enc, byte0, false)
+  return ok and idx or byte0
+end
+
+-- LSP code unit → 0-based byte 偏移（utf-8 为恒等）
+local function lsp_char_to_byte(line, char, enc)
+  if enc == 'utf-8' or char <= 0 then return math.max(0, char) end
+  local ok, idx = pcall(vim.str_byteindex, line, enc, char, false)
+  return ok and idx or char
+end
+
 function M.lsp(cur, cfg)
   local clients = vim.lsp.get_clients({ bufnr = 0, method = 'textDocument/selectionRange' })
   if #clients == 0 then return nil end
   local buf = vim.api.nvim_get_current_buf()
   local client = clients[1]
+  local enc = client.offset_encoding or 'utf-16'
+
+  -- cur[2] 是 1-based byte col；LSP position 的 character 是 position encoding（默认 utf-16）
+  -- 的 code unit，含多字节字符的行上二者不等，必须按行文本换算
+  local cur_line = R.line_text(cur[1])
+  local req_char = byte_to_lsp_char(cur_line, cur[2] - 1, enc)
   local params = {
     textDocument = vim.lsp.util.make_text_document_params(buf),
-    positions = { { line = cur[1] - 1, character = cur[2] - 1 } },
+    positions = { { line = cur[1] - 1, character = req_char } },
   }
   local ok, resp = pcall(function()
     return client:request_sync('textDocument/selectionRange', params, cfg.lsp_timeout, buf)
@@ -165,10 +199,12 @@ function M.lsp(cur, cfg)
   while sel do
     local r = sel.range
     local s_lnum = r.start.line + 1
-    local s_col = r.start.character + 1
     local e_lnum = r['end'].line + 1
-    -- LSP end.character 是 exclusive 的，转为 inclusive 需 -1
-    local e_col = r['end'].character - 1
+    -- 返回的 character 是 code unit，按各自行文本转回字节列
+    local s_col = lsp_char_to_byte(R.line_text(s_lnum), r.start.character, enc) + 1
+    -- end.character 是 0-based exclusive；转出的 0-based exclusive 字节偏移直接当 1-based
+    -- inclusive 字节列用（exclusive→inclusive 的 -1 与 0→1based 的 +1 抵消，与 treesitter 层一致）
+    local e_col = lsp_char_to_byte(R.line_text(e_lnum), r['end'].character, enc)
     if e_col <= 0 and e_lnum > s_lnum then
       e_lnum = e_lnum - 1
       e_col = R.last_col(e_lnum)

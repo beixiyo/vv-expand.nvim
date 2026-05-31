@@ -57,6 +57,9 @@ end
 
 function M.expand()
   if excluded_ft() then return end
+  -- blockwise visual (Ctrl-V) 没有良定义的「扩张」语义，且 set_visual 会把它静默转成 charwise
+  -- 字符可视选区（块状选择丢失）。keymap 绑在 'x' 模式含块选，这里直接不处理、保留原选区
+  if vim.fn.mode() == '\22' then return end
   local cur = R.get_cur()
   local stack = get_stack()
   -- 与栈顶不一致（用户手动改了选区）→ 重置栈
@@ -84,6 +87,8 @@ end
 
 function M.shrink()
   if excluded_ft() then return end
+  -- blockwise visual (Ctrl-V) 同 expand：不处理，避免把块选静默转成 charwise
+  if vim.fn.mode() == '\22' then return end
   local stack = get_stack()
   if #stack <= 1 then return end
   table.remove(stack)
