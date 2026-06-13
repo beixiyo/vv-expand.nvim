@@ -91,14 +91,30 @@ function M.shrink()
   if vim.fn.mode() == '\22' then return end
   local stack = get_stack()
   if #stack <= 1 then return end
+  -- 与栈顶不一致（用户手动改了选区）→ 这不是扩张历史的一部分，放手不处理
+  if not R.eq(stack[#stack], R.get_cur()) then return end
   table.remove(stack)
   local prev = stack[#stack]
   if not prev then return end
-  if prev[1] == prev[3] and prev[2] == prev[4] then
-    if vim.fn.mode():match('[vV\22]') then vim.cmd('normal! \27') end
-    vim.api.nvim_win_set_cursor(0, { prev[1], math.max(0, prev[2] - 1) })
-  else
-    R.set_visual(prev)
+
+  -- 中途编辑过 buffer 可能让栈里记录的绝对行号越界，越界则丢弃整栈，
+  -- 让下一次 gv/expand 从实时选区重新播种，避免 nvim_win_set_cursor 抛 'Invalid cursor line'
+  local n = vim.api.nvim_buf_line_count(0)
+  if prev[1] > n or prev[3] > n then
+    stacks[vim.api.nvim_get_current_buf()] = {}
+    return
+  end
+
+  local ok = pcall(function()
+    if prev[1] == prev[3] and prev[2] == prev[4] then
+      if vim.fn.mode():match('[vV\22]') then vim.cmd('normal! \27') end
+      vim.api.nvim_win_set_cursor(0, { prev[1], math.max(0, prev[2] - 1) })
+    else
+      R.set_visual(prev)
+    end
+  end)
+  if not ok then
+    stacks[vim.api.nvim_get_current_buf()] = {}
   end
 end
 
