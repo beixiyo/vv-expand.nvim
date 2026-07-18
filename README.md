@@ -31,7 +31,7 @@ vv-expand first performs an **inline paired-character scan** (brackets / quotes 
 {
   'beixiyo/vv-expand.nvim',
   event = { 'BufReadPost', 'BufNewFile' },
-  ---@type ExpandConfig
+  ---@type VVExpandConfig
   opts = {
     pairs = {
       same = { '"', "'", '`', '*', '_', '-' },       -- Same-character pairs

@@ -31,7 +31,7 @@ vv-expand 先用**行内成对字符扫描**（括号 / 引号 / emphasis）做�
 {
   'beixiyo/vv-expand.nvim',
   event = { 'BufReadPost', 'BufNewFile' },
-  ---@type ExpandConfig
+  ---@type VVExpandConfig
   opts = {
     pairs = {
       same = { '"', "'", '`', '*', '_', '-' },       -- 同字符配对
