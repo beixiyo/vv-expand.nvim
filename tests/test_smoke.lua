@@ -120,34 +120,33 @@ do
   end
 end
 
-print('\n=== FIX 8: filetype_exclude 注释 ===')
+print('\n=== 私有面板 filetype 默认排除 ===')
 do
-  local init_path = root .. 'init.lua'
-  local f = io.open(init_path, 'r')
-  if f then
-    local content = f:read('*a')
-    f:close()
+  local expand = require('vv-expand')
+  expand.setup()
 
-    -- 检查注释存在
-    ok(
-      content:find("'vv%-explorer'") ~= nil,
-      'filetype_exclude 仍包含 vv-explorer'
-    )
-    ok(
-      content:find("'vv%-task%-panel'") ~= nil,
-      'filetype_exclude 仍包含 vv-task-panel'
-    )
-    ok(
-      content:find('作者的其他插件') ~= nil,
-      '添加了说明注释'
-    )
-    ok(
-      content:find('安全忽略') ~= nil,
-      '注释说明未安装时会被安全忽略'
-    )
-  else
-    ok(false, '无法读取 init.lua')
+  local function has_map(buf, mode, desc)
+    for _, map in ipairs(vim.api.nvim_buf_get_keymap(buf, mode)) do
+      if map.desc == desc then return true end
+    end
+    return false
   end
+
+  for _, ft in ipairs({ 'vv-task-panel', 'vv-task-panel-tasks' }) do
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.bo[buf].filetype = ft
+
+    ok(not has_map(buf, 'n', 'Expand: init selection'), ft .. ' 不安装 normal 映射')
+    ok(not has_map(buf, 'x', 'Expand: expand'), ft .. ' 不安装 visual expand 映射')
+    ok(not has_map(buf, 'x', 'Expand: shrink'), ft .. ' 不安装 visual shrink 映射')
+
+    vim.api.nvim_buf_delete(buf, { force = true })
+  end
+
+  local control = vim.api.nvim_create_buf(false, true)
+  vim.bo[control].filetype = 'lua'
+  ok(has_map(control, 'n', 'Expand: init selection'), '普通 Lua buffer 仍安装映射')
+  vim.api.nvim_buf_delete(control, { force = true })
 end
 
 print(string.format('\n结果：%d 通过，%d 失败\n', pass, fail))

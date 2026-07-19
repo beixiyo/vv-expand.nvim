@@ -46,7 +46,11 @@ vv-expand first performs an **inline paired-character scan** (brackets / quotes 
       shrink = '<BS>',   -- Shrink in visual mode
     },
     subword_delimiters = '-=+/:;|,.?\\!@#$%^&*~', -- Segment delimiters; nil disables subword expansion
-    filetype_exclude = { 'qf', 'help', 'dashboard', 'vv-explorer', 'vv-task-panel' },
+    filetype_exclude = {
+      'qf', 'help', 'dashboard', 'vv-explorer',
+      'vv-task-panel', 'vv-task-panel-tasks',
+      'TelescopePrompt',
+    },
     lsp_timeout = 400,   -- LSP selectionRange timeout (ms)
   },
 }

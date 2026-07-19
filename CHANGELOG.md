@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.1] - 2026-07-19
+
+### Fixed
+
+- 默认排除 `TelescopePrompt` `vv-task-panel` 主面板与 `vv-task-panel-tasks` 任务列表，不再向这些 UI buffer 安装选区扩张快捷键
+
 ## [0.1.0] - 2026-07-13
 
 ### Added

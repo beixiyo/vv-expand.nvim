@@ -46,7 +46,11 @@ vv-expand 先用**行内成对字符扫描**（括号 / 引号 / emphasis）做�
       shrink = '<BS>',   -- visual 模式回缩
     },
     subword_delimiters = '-=+/:;|,.?\\!@#$%^&*~', -- 逐段扩张分隔符；nil 则禁用
-    filetype_exclude = { 'qf', 'help', 'dashboard', 'vv-explorer', 'vv-task-panel' },
+    filetype_exclude = {
+      'qf', 'help', 'dashboard', 'vv-explorer',
+      'vv-task-panel', 'vv-task-panel-tasks',
+      'TelescopePrompt',
+    },
     lsp_timeout = 400,   -- LSP selectionRange 超时（ms）
   },
 }
