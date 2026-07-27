@@ -105,6 +105,30 @@ do
   end
 end
 
+print('\n=== blockwise visual guard ===')
+do
+  local expand = require('vv-expand')
+  local buf = vim.api.nvim_get_current_buf()
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { 'alpha', 'bravo', 'charlie' })
+  vim.cmd('normal! gg0')
+  vim.cmd('normal! \22jl')
+  ok(vim.fn.mode() == '\22', '测试前已进入 blockwise visual 模式')
+
+  local before_start = vim.fn.getpos("'<")
+  local before_end = vim.fn.getpos("'>")
+  expand.expand()
+  ok(vim.fn.mode() == '\22', 'expand 保留 blockwise visual 模式')
+  ok(vim.deep_equal(vim.fn.getpos("'<"), before_start) and vim.deep_equal(vim.fn.getpos("'>"), before_end),
+    'expand 保留原 blockwise 选区')
+
+  expand.shrink()
+  ok(vim.fn.mode() == '\22', 'shrink 保留 blockwise visual 模式')
+  ok(vim.deep_equal(vim.fn.getpos("'<"), before_start) and vim.deep_equal(vim.fn.getpos("'>"), before_end),
+    'shrink 保留原 blockwise 选区')
+  vim.cmd('normal! \27')
+end
+
 print('\n=== 私有面板 filetype 默认排除 ===')
 do
   local expand = require('vv-expand')
