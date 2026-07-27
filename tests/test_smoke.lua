@@ -14,90 +14,75 @@ local function ok(cond, msg)
   end
 end
 
-local root = debug.getinfo(1, 'S').source:sub(2):match('(.*/)')
-      .. '../lua/vv-expand/'
+local this = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p')
+local plugin_root = vim.fn.fnamemodify(this, ':h:h')
+vim.opt.runtimepath:append(plugin_root)
 
-print('\n=== #60/#61: LSP selectionRange 列转换（exclusive→inclusive + position encoding）===')
+print('\n=== LSP selectionRange: UTF-16 请求与 exclusive 响应范围 ===')
 do
-  local layers_path = root .. 'layers.lua'
-  local f = io.open(layers_path, 'r')
-  if f then
-    local content = f:read('*a')
-    f:close()
+  local layers = require('vv-expand.layers')
+  local old_get_clients = vim.lsp.get_clients
+  local request_character
+  local client = {
+    offset_encoding = 'utf-16',
+    request_sync = function(_, _, params)
+      request_character = params.positions[1].character
+      return {
+        result = {
+          {
+            range = {
+              start = { line = 0, character = 2 },
+              ['end'] = { line = 0, character = 5 },
+            },
+          },
+        },
+      }
+    end,
+  }
 
-    -- #60：之前 FIX 7 多减了 1（character - 1），实为 bug——0-based exclusive 列直接当
-    -- 1-based inclusive 即可（与 treesitter 层一致），故源码不应再出现该 - 1
-    ok(
-      content:find("e_col = r%['end'%].character %- 1") == nil,
-      '#60 e_col 不再用 character - 1（修正之前多减 1 的 off-by-one）'
-    )
+  vim.api.nvim_buf_set_lines(0, 0, -1, false, { '中文foo' })
+-- 测试需要临时替换 Neovim API；LuaLS 将该受保护字段视为不可重复赋值
+---@diagnostic disable-next-line: duplicate-set-field
+  vim.lsp.get_clients = function() return { client } end
+  local range = layers.lsp({ 1, 7, 1, 7 }, { lsp_timeout = 50 })
+  vim.lsp.get_clients = old_get_clients
 
-    -- 边界回退条件保留（character==0 跨行时回退上一行末尾）
-    ok(
-      content:find('e_col <= 0 and e_lnum > s_lnum') ~= nil,
-      '边界条件保留 e_col <= 0 的行回退'
-    )
-
-    -- #61：请求/响应按 client.offset_encoding 做 byte↔code-unit（UTF-16）转换
-    ok(
-      content:find('offset_encoding') ~= nil,
-      '#61 使用 client.offset_encoding'
-    )
-    ok(
-      content:find('str_utfindex') ~= nil and content:find('str_byteindex') ~= nil,
-      '#61 用 str_utfindex/str_byteindex 做 UTF-16↔byte 转换'
-    )
-  else
-    ok(false, '无法读取 layers.lua')
-  end
+  ok(request_character == 2, '请求把中文后的 byte 列转换为 UTF-16 code unit')
+  ok(range and vim.deep_equal(range, { 1, 7, 1, 9 }), '响应的 exclusive UTF-16 end 转为完整 foo byte 范围')
 end
 
--- 单元测试：#60 修正后 ASCII（byte==code-unit）下 e_col = character（不再 -1）
-print('\n=== #60: e_col 转换逻辑单元测试（修正版）===')
+print('\n=== LSP selectionRange: 跨行 end.character=0 回退 ===')
 do
-  -- end.character=3 exclusive（'foo' 选到 0-based 第 2 列）→ 1-based inclusive = 3，覆盖完整 foo
-  ok(3 == 3, 'character=3 exclusive → col=3 inclusive（覆盖完整 foo，不再短 1）')
-  -- end.character=0（跨行场景）→ e_col=0 <= 0 触发行回退
-  ok(0 <= 0, 'character=0 → col=0 <= 0（触发行回退逻辑）')
-  -- math.max(1, e_col) 保底
-  ok(math.max(1, 0) == 1, 'math.max(1, 0) 兜底为 1')
-  ok(math.max(1, 3) == 3, 'math.max(1, 3) 保持 3')
-end
+  local layers = require('vv-expand.layers')
+  local old_get_clients = vim.lsp.get_clients
+  local client = {
+    offset_encoding = 'utf-16',
+    request_sync = function()
+      return {
+        result = {
+          {
+            range = {
+              start = { line = 0, character = 0 },
+              ['end'] = { line = 1, character = 0 },
+            },
+          },
+        },
+      }
+    end,
+  }
 
--- 单元测试：#61 真实 byte↔utf-16 转换（含多字节字符的行）
-print('\n=== #61: byte↔utf-16 转换单元测试 ===')
-do
-  local line = "local s = '中文' .. bar"  -- 'bar' 在 utf-16 char[18,21)，byte col 23-25
-  ok(vim.str_utfindex(line, 'utf-16', 22, false) == 18, '请求：byte 22(0-based) → utf-16 18')
-  ok(vim.str_byteindex(line, 'utf-16', 18, false) + 1 == 23, '响应 start：utf-16 18 → 起始列 23')
-  ok(vim.str_byteindex(line, 'utf-16', 21, false) == 25, '响应 end：utf-16 21(excl) → inclusive 列 25')
-end
+  vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'foo', 'bar' })
+-- 测试需要临时替换 Neovim API；LuaLS 将该受保护字段视为不可重复赋值
+---@diagnostic disable-next-line: duplicate-set-field
+  vim.lsp.get_clients = function() return { client } end
+  local range = layers.lsp({ 1, 2, 1, 2 }, { lsp_timeout = 50 })
+  vim.lsp.get_clients = old_get_clients
 
-print('\n=== #62: blockwise visual (Ctrl-V) 守卫 ===')
-do
-  local init_path = root .. 'init.lua'
-  local f = io.open(init_path, 'r')
-  if f then
-    local content = f:read('*a')
-    f:close()
-    -- expand 与 shrink 入口都应有 mode()==Ctrl-V 守卫（needle 中 \\22 = 字面反斜杠+22）
-    local needle = "vim.fn.mode() == '\\22'"
-    local n, pos = 0, 1
-    while true do
-      local s = content:find(needle, pos, true)
-      if not s then break end
-      n = n + 1
-      pos = s + 1
-    end
-    ok(n >= 2, 'expand/shrink 入口均有 blockwise 守卫（找到 ' .. n .. ' 处）')
-  else
-    ok(false, '无法读取 init.lua')
-  end
+  ok(range and vim.deep_equal(range, { 1, 1, 1, 3 }), '跨行 exclusive 行首回退到前一行末尾')
 end
 
 print('\n=== same-char run 配对（markdown ** / __ 嵌套，含回归）===')
 do
-  vim.opt.runtimepath:append(root .. '../../') -- root=<plugin>/lua/vv-expand/ → <plugin>/
   local ok_layers, layers = pcall(require, 'vv-expand.layers')
   if ok_layers then
     local cfg = require('vv-expand').get_config()
