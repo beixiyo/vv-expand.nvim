@@ -44,6 +44,58 @@ local config = defaults
 
 -- 每 buffer 独立的选区历史栈
 local stacks = {}
+local owned_keymaps = {}
+
+---@param buf integer
+---@param mode string
+---@param lhs string
+---@return table?
+local function get_buffer_keymap(buf, mode, lhs)
+  local target = vim.fn.keytrans(vim.keycode(lhs))
+  for _, mapping in ipairs(vim.api.nvim_buf_get_keymap(buf, mode)) do
+    if vim.fn.keytrans(vim.keycode(mapping.lhs)) == target then return mapping end
+  end
+end
+
+---@param buf integer
+---@param mode string
+---@param lhs string
+---@param mapping table?
+local function restore_buffer_keymap(buf, mode, lhs, mapping)
+  if not mapping then
+    pcall(vim.api.nvim_buf_del_keymap, buf, mode, lhs)
+    return
+  end
+
+  local opts = {
+    noremap = mapping.noremap == 1,
+    silent = mapping.silent == 1,
+    expr = mapping.expr == 1,
+    nowait = mapping.nowait == 1,
+    script = mapping.script == 1,
+    desc = mapping.desc,
+    replace_keycodes = mapping.replace_keycodes == 1,
+  }
+  if mapping.callback then opts.callback = mapping.callback end
+  vim.api.nvim_buf_set_keymap(buf, mode, lhs, mapping.rhs or '', opts)
+end
+
+---@param buf integer
+local function clear_keymaps(buf)
+  local owned = owned_keymaps[buf]
+  if not owned then return end
+
+  for _, mapping in pairs(owned) do
+    local current = get_buffer_keymap(buf, mapping.mode, mapping.lhs)
+    if current
+        and current.callback == mapping.callback
+        and current.desc == mapping.desc
+    then
+      restore_buffer_keymap(buf, mapping.mode, mapping.lhs, mapping.previous)
+    end
+  end
+  owned_keymaps[buf] = nil
+end
 
 local function get_stack(buf)
   buf = buf or vim.api.nvim_get_current_buf()
@@ -133,7 +185,27 @@ local function install_keymaps(buf)
   local k = config.keymaps
   local function map(mode, lhs, fn, desc)
     if not lhs then return end
-    vim.keymap.set(mode, lhs, fn, { buffer = buf, silent = true, desc = desc })
+
+    local key = mode .. '\0' .. vim.fn.keytrans(vim.keycode(lhs))
+    local callback = function() fn() end
+    owned_keymaps[buf] = owned_keymaps[buf] or {}
+    local claim = owned_keymaps[buf][key]
+
+    -- expand/shrink 可以共用同一 visual lhs：第一次 claim 保存 setup 前映射，
+    -- 后续安装只更新当前所有权，不能把插件自己的上一版误记为 original。
+    if not claim then
+      claim = {
+        mode = mode,
+        lhs = lhs,
+        previous = get_buffer_keymap(buf, mode, lhs),
+      }
+      owned_keymaps[buf][key] = claim
+    end
+
+    vim.keymap.set(mode, lhs, callback, { buffer = buf, silent = true, desc = desc })
+    claim.lhs = lhs
+    claim.callback = callback
+    claim.desc = desc
   end
   map('n', k.init, M.init, 'Expand: init selection')
   map('x', k.expand, M.expand, 'Expand: expand')
@@ -141,19 +213,27 @@ local function install_keymaps(buf)
 end
 
 function M.setup(opts)
-  config = vim.tbl_deep_extend('force', defaults, opts or {})
+  for buf in pairs(owned_keymaps) do
+    if vim.api.nvim_buf_is_valid(buf) then clear_keymaps(buf) end
+  end
+
+  config = vim.tbl_deep_extend('force', vim.deepcopy(defaults), opts or {})
 
   local group = vim.api.nvim_create_augroup('VVExpand', { clear = true })
   vim.api.nvim_create_autocmd('FileType', {
     group = group,
     callback = function(ev)
+      clear_keymaps(ev.buf)
       if excluded_ft(vim.bo[ev.buf].filetype) then return end
       install_keymaps(ev.buf)
     end,
   })
   vim.api.nvim_create_autocmd('BufWipeout', {
     group = group,
-    callback = function(ev) stacks[ev.buf] = nil end,
+    callback = function(ev)
+      stacks[ev.buf] = nil
+      owned_keymaps[ev.buf] = nil
+    end,
   })
   -- 懒加载时已打开的 buffer：补装 keymap
   for _, buf in ipairs(vim.api.nvim_list_bufs()) do
