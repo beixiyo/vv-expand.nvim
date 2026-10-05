@@ -73,25 +73,11 @@ vv-expand first performs an **inline paired-character scan** (brackets / quotes 
 ## Development tests
 
 ```sh
-./tests/run.sh
-./tests/run.sh 'FILTER'
-# Optional Neovim override
-NVIM_BIN=/path/to/nvim ./tests/run.sh
+./tests/run.sh [literal-filter]
 ```
 
-Unix-like systems only; requires Neovim 0.12+ (0.12 stable recommended), Git and POSIX shell.
-`./tests/run.sh` prepares pinned vv-utils (`ed9b6ae`) and mini.test sources on first use;
-no sibling checkout, personal Neovim configuration or parser installation is required.
-Dependencies are cached under `VV_TEST_DEPS_CACHE` (default: `$XDG_CACHE_HOME/nvim-test-deps`
-or `~/.cache/nvim-test-deps`); later runs work offline with a populated cache.
-`VV_UTILS` optionally overrides the shared source checkout; `NVIM_BIN` defaults to `nvim`.
-The optional filter matches a literal substring of the file path or Chinese case name;
-no matches fails. The entrypoint does not install system tools.
+Requires Unix-like OS, Neovim 0.12+, Git, POSIX shell and an existing vv-utils.nvim source checkout containing `dev/test/`. The entry discovers development or installed sources; override with `VV_UTILS` or select Neovim with `NVIM_BIN`. It neither loads personal configuration nor downloads vv plugins.
 
-Each named case starts a fresh child Neovim without personal configuration, with cwd, HOME,
-XDG directories and temporary fixtures under an independent `/tmp` directory. Parent hooks stop the
-child and remove fixtures even after assertion failures; scheduled callback errors are asserted separately.
-Headless state checks do not replace visual or mouse validation in a real terminal.
+LSP responses are mocked; no treesitter parsers are required. Utils is test infrastructure only, not a production dependency.
 
-LSP responses are mocked; tests preserve UTF-16 ranges, pair boundaries, blockwise selection and keymap lifecycle.
-No treesitter parser is needed for this regression suite.
+Filtering is literal; no matches exits nonzero. Discovery, mini.test preparation and isolation are documented in the [shared test guide](https://github.com/beixiyo/vv-utils.nvim/blob/main/dev/test/README.md).
