@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0 - 2026-10-21
+
+### Breaking
+
+- setup() 不再返回配置，需要时用 get_config()
+
+### Changed
+
+- `subword_delimiters` 与 `keymaps.*` 各项设为 `false` 即禁用；`nil` 表示未配置、取默认值
+- 移除 `VVExpandSetupOpts`，输入类型统一为 `VVExpandOpts`
+
 ## 0.1.1 - 2026-07-19
 
 ### Fixed

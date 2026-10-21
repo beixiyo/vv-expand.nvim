@@ -45,7 +45,7 @@ vv-expand first performs an **inline paired-character scan** (brackets / quotes 
       expand = '<CR>',   -- Expand in visual mode
       shrink = '<BS>',   -- Shrink in visual mode
     },
-    subword_delimiters = '-=+/:;|,.?\\!@#$%^&*~', -- Segment delimiters; nil disables subword expansion
+    subword_delimiters = '-=+/:;|,.?\\!@#$%^&*~', -- Segment delimiters; false disables subword expansion
     filetype_exclude = {
       'qf', 'help', 'dashboard', 'vv-explorer',
       'vv-task-panel', 'vv-task-panel-tasks',
@@ -63,11 +63,11 @@ vv-expand first performs an **inline paired-character scan** (brackets / quotes 
 | `pairs.same` | `string[]` | `'"', "'", '`', '*', '_', '-'` | Same-character pairs (characters surrounded by alphanumeric characters on both sides are treated as part of a word and are not paired) |
 | `pairs.nested` | `string[][]` | `() [] {} <>` | Nested bracket pairs matched with a stack |
 | `layers` | `string[]` | `{ 'word', 'pair', 'lsp', 'treesitter', 'line' }` | Expansion strategy priority; remove a layer from the list to disable it |
-| `keymaps.init` | `string` | `'<CR>'` | Start a selection in normal mode |
-| `keymaps.expand` | `string` | `'<CR>'` | Expand the selection outward by one level in visual mode |
-| `keymaps.shrink` | `string` | `'<BS>'` | Shrink the selection inward by one level in visual mode |
+| `keymaps.init` | `string\|false` | `'<CR>'` | Start a selection in normal mode; `false` skips this mapping |
+| `keymaps.expand` | `string\|false` | `'<CR>'` | Expand the selection outward by one level in visual mode; `false` skips this mapping |
+| `keymaps.shrink` | `string\|false` | `'<BS>'` | Shrink the selection inward by one level in visual mode; `false` skips this mapping |
 | `filetype_exclude` | `string[]` | `{ 'qf', 'help', ... }` | Filetypes excluded from keymap bindings |
-| `subword_delimiters` | `string?` | `'-=+/:;\|,.?\\!@#$%^&*~'` | Characters used as delimiters for segment-by-segment expansion; `nil` disables it and expands directly from `iw` to `iW` |
+| `subword_delimiters` | `string\|false` | `'-=+/:;\|,.?\\!@#$%^&*~'` | Characters used as delimiters for segment-by-segment expansion; `false` disables it and expands directly from `iw` to `iW` |
 | `lsp_timeout` | `integer` | `400` | Timeout in milliseconds for LSP `selectionRange` requests |
 
 ## Development tests

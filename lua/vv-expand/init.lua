@@ -10,10 +10,21 @@ local M = {}
 ---@class VVExpandConfig
 ---@field pairs { same: string[], nested: string[][] } 参与匹配的字符对；same 为同字符成对，nested 为开闭不同对 @default { same = { '"', "'", '`', '*', '_', '-' }, nested = { ... } }
 ---@field layers ('pair'|'lsp'|'treesitter'|'line'|'word')[] 扩张层级顺序，先命中先用 @default { 'word', 'pair', 'lsp', 'treesitter', 'line' }
----@field keymaps { init?: string, expand?: string, shrink?: string } 按键映射 @default { init = '<CR>', expand = '<CR>', shrink = '<BS>' }
+---@field keymaps VVExpandKeymapsConfig 按键映射，单项设为 false 则不安装该映射 @default { init = '<CR>', expand = '<CR>', shrink = '<BS>' }
 ---@field filetype_exclude string[] 不启用的 filetype 列表 @default { 'qf', 'help', 'dashboard', 'vv-explorer', 'vv-task-panel', 'vv-task-panel-tasks' }
----@field subword_delimiters? string 逐段扩张的分隔符字符集；nil 则禁用逐段、直接 iw → iW @default '-=+/:;|,.?\\!@#$%^&*~'
+---@field subword_delimiters string|false 逐段扩张的分隔符字符集；false 则禁用逐段、直接 iw → iW @default '-=+/:;|,.?\\!@#$%^&*~'
 ---@field lsp_timeout integer LSP selectionRange 同步请求超时 (ms) @default 400
+
+---@class VVExpandKeymapsConfig
+---@field init string|false normal 模式开始选区 @default '<CR>'
+---@field expand string|false visual 模式向外扩一级 @default '<CR>'
+---@field shrink string|false visual 模式向内缩一级 @default '<BS>'
+
+---@class (partial) VVExpandKeymapsOpts: VVExpandKeymapsConfig
+---@class (partial) VVExpandOpts: VVExpandConfig
+---@field keymaps? VVExpandKeymapsOpts
+
+---@type VVExpandConfig
 local defaults = {
   pairs = {
     same = { '"', "'", '`', '*', '_', '-' },
@@ -40,7 +51,8 @@ local defaults = {
   lsp_timeout = 400,
 }
 
-local config = defaults
+---@type VVExpandConfig
+local config = vim.deepcopy(defaults)
 
 -- 每 buffer 独立的选区历史栈
 local stacks = {}
@@ -192,7 +204,7 @@ local function install_keymaps(buf)
     local claim = owned_keymaps[buf][key]
 
     -- expand/shrink 可以共用同一 visual lhs：第一次 claim 保存 setup 前映射，
-    -- 后续安装只更新当前所有权，不能把插件自己的上一版误记为 original。
+    -- 后续安装只更新当前所有权，不能把插件自己的上一版误记为 original
     if not claim then
       claim = {
         mode = mode,
@@ -212,6 +224,7 @@ local function install_keymaps(buf)
   map('x', k.shrink, M.shrink, 'Expand: shrink')
 end
 
+---@param opts? VVExpandOpts
 function M.setup(opts)
   for buf in pairs(owned_keymaps) do
     if vim.api.nvim_buf_is_valid(buf) then clear_keymaps(buf) end

@@ -55,7 +55,7 @@ function M.word(cur, cfg)
     return best
   end
 
-  -- iW: [^%s]+ 连续非空白（仅 subword_delimiters 未配置时）
+  -- iW: [^%s]+ 连续非空白（仅 subword_delimiters 设为 false 时）
   s, e = cur_s, cur_e
   while s > 1 and not line:sub(s - 1, s - 1):match('%s') do s = s - 1 end
   while e < #line and not line:sub(e + 1, e + 1):match('%s') do e = e + 1 end
@@ -70,11 +70,11 @@ end
 -- word-boundary 规则：分隔字符（run）两侧同时是 ASCII 字母数字时视为词内（snake_case 的 _、
 -- a*b 的 *、kebab 的 -），不参与配对；其余（标点、空白、行首行尾、CJK）都是合法分隔位
 
--- 找出 ch 在本行的所有成对位置（含 markdown 风格的连续 run 多层嵌套）。
+-- 找出 ch 在本行的所有成对位置（含 markdown 风格的连续 run 多层嵌套）
 -- run = 连续相同字符（如 ** / __）视作一个分隔 token；run 按出现顺序 parity 配对
 -- （run#1 开 ↔ run#2 闭、run#3 ↔ run#4 ...），run 内字符由内向外逐层嵌套，
--- 使 **x** 能逐层扩张 x → *x* → **x**；单字符 run 退化为普通成对（不影响 'a'、'a' 'b' 等）。
--- 返回 { {s,e}, ... }，调用方对每个 try_pair 生成内/外候选，再由 try 的 contains_strict 选最内层。
+-- 使 **x** 能逐层扩张 x → *x* → **x**；单字符 run 退化为普通成对（不影响 'a'、'a' 'b' 等）
+-- 返回 { {s,e}, ... }，调用方对每个 try_pair 生成内/外候选，再由 try 的 contains_strict 选最内层
 local function find_same_char_pairs(line, ch)
   local n = #line
   local runs = {}

@@ -45,7 +45,7 @@ vv-expand 先用**行内成对字符扫描**（括号 / 引号 / emphasis）做�
       expand = '<CR>',   -- visual 模式扩张
       shrink = '<BS>',   -- visual 模式回缩
     },
-    subword_delimiters = '-=+/:;|,.?\\!@#$%^&*~', -- 逐段扩张分隔符；nil 则禁用
+    subword_delimiters = '-=+/:;|,.?\\!@#$%^&*~', -- 逐段扩张分隔符；false 则禁用
     filetype_exclude = {
       'qf', 'help', 'dashboard', 'vv-explorer',
       'vv-task-panel', 'vv-task-panel-tasks',
@@ -63,11 +63,11 @@ vv-expand 先用**行内成对字符扫描**（括号 / 引号 / emphasis）做�
 | `pairs.same` | `string[]` | `'"', "'", '`', '*', '_', '-'` | 同字符配对列表（两侧同为字母数字时视为词内，不配对） |
 | `pairs.nested` | `string[][]` | `() [] {} <>` | 嵌套括号对，基于栈匹配 |
 | `layers` | `string[]` | `{ 'word', 'pair', 'lsp', 'treesitter', 'line' }` | 扩张策略优先级；想关掉某层从列表删除即可 |
-| `keymaps.init` | `string` | `'<CR>'` | normal 模式开始选区 |
-| `keymaps.expand` | `string` | `'<CR>'` | visual 模式向外扩一级 |
-| `keymaps.shrink` | `string` | `'<BS>'` | visual 模式向内缩一级 |
+| `keymaps.init` | `string\|false` | `'<CR>'` | normal 模式开始选区；`false` 则不安装该映射 |
+| `keymaps.expand` | `string\|false` | `'<CR>'` | visual 模式向外扩一级；`false` 则不安装该映射 |
+| `keymaps.shrink` | `string\|false` | `'<BS>'` | visual 模式向内缩一级；`false` 则不安装该映射 |
 | `filetype_exclude` | `string[]` | `{ 'qf', 'help', ... }` | 排除的 filetype，不绑定按键 |
-| `subword_delimiters` | `string?` | `'-=+/:;\|,.?\\!@#$%^&*~'` | 逐段扩张的分隔符字符集；`nil` 则禁用逐段扩张，直接 iw → iW |
+| `subword_delimiters` | `string\|false` | `'-=+/:;\|,.?\\!@#$%^&*~'` | 逐段扩张的分隔符字符集；`false` 则禁用逐段扩张，直接 iw → iW |
 | `lsp_timeout` | `integer` | `400` | LSP `selectionRange` 请求超时 ms |
 
 ## 开发测试
